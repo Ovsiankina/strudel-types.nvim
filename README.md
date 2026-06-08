@@ -31,7 +31,10 @@ and nothing dropped in your music folder**.
   dependencies = { 'gruvw/strudel.nvim' },
   lazy = false, -- tiny; just registers an autocmd + commands so root_dir helpers exist
   config = function()
-    require('strudel-types').setup({}) -- always-on for .str/.std (loaded lazily)
+    require('strudel-types').setup({
+      -- preview_progress_min_ms = 0, -- show the <Tab> progress bar only for sounds
+      --                              -- at least N ms long; 0 (default) = always show
+    })
   end,
 }
 ```
@@ -76,9 +79,16 @@ picker of every Strudel sound (synths + GM soundfonts + default samples) and ins
 the chosen name at your cursor (put it inside `s("…")`). Uses telescope if available,
 otherwise `vim.ui.select`.
 
+**Imported sounds** declared in the buffer via `samples('github:user/repo')` (or a
+URL) are resolved and listed **first, labelled with their source** — e.g.
+`swpad ‹switchangel/pad›`. Bundled defaults follow with no label (no label = the
+default Strudel bank). Imported sounds preview too.
+
 In the telescope picker, **`<Tab>` previews** the highlighted sound (cached after the
-first fetch), played via `mpv`/`ffplay`/`pw-play`/`paplay` (first found):
-- **samples** (~373) play their first sample file;
+first fetch), played via `mpv`/`ffplay`/`pw-play`/`paplay` (first found). A loading
+**spinner** shows while it fetches, then a **progress bar** for the sound's duration
+(needs `ffprobe`; gate it with `preview_progress_min_ms`). What previews:
+- **samples** (~373, incl. your imports) play their first sample file;
 - **GM soundfonts** (`gm_*`, ~125) are decoded from their webaudiofont preset by
   `scripts/preview-soundfont.mjs` (needs `node`) — a single mid-range note;
 - the ~26 **built-in synths** (sine, sawtooth, …) are generated in the browser, so
