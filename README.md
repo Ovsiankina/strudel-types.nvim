@@ -31,9 +31,7 @@ and nothing dropped in your music folder**.
   dependencies = { 'gruvw/strudel.nvim' },
   lazy = false, -- tiny; just registers an autocmd + commands so root_dir helpers exist
   config = function()
-    require('strudel-types').setup({
-      auto = false, -- false = ask once per session before enabling; true = always on
-    })
+    require('strudel-types').setup({}) -- always-on for .str/.std (loaded lazily)
   end,
 }
 ```
@@ -61,8 +59,15 @@ Recommended: run a single TS server on `.str` buffers (don't let both `ts_ls` an
 
 ## Usage
 
-Open a `.str` file → accept the prompt (or set `auto = true`). Completion and hover
-work immediately.
+Open a `.str` file → completion and hover work immediately (the typedef is loaded
+lazily on the first `.str`/`.std` buffer, so there's no startup cost). Prefer to be
+asked first? `setup({ prompt = true })`.
+
+Mini-notation works as a method receiver too: the pattern methods are mirrored onto
+`String`/`Number`, so `"<0 1>".pickRestart([...])` and `"bd*4".s().fast(2)` type-check
+just like `mini("<0 1>")...`. Your own `register('name', ...)` methods don't break the
+chain either (an index signature keeps them typed as `Pattern`), though they won't
+have real hover/param docs since they're defined at runtime in the patch.
 
 - `:StrudelTypesUpdate` — regenerate the typedef from the latest Strudel JSDoc.
 - `:StrudelTypesEnable` / `:StrudelTypesDisable` — toggle for the session.

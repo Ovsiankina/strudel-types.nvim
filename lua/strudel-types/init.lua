@@ -121,10 +121,12 @@ function M.update()
   end)
 end
 
---- @param opts table|nil  { auto = false }  auto=true skips the prompt.
+--- @param opts table|nil  { prompt = false }
+---   Default: always-on for .str/.std (loads lazily on first such buffer, no prompt).
+---   Set prompt=true to be asked once per session before enabling.
 function M.setup(opts)
   opts = opts or {}
-  if opts.auto then enabled = true end
+  if not opts.prompt then enabled = true end
 
   local grp = vim.api.nvim_create_augroup('StrudelTypes', { clear = true })
   vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
