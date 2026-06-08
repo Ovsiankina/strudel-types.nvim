@@ -74,9 +74,16 @@ have real hover/param docs since they're defined at runtime in the patch.
 `<leader>mf` (buffer-local to `.str`/`.std`) — or `:StrudelSounds` — opens a fuzzy
 picker of every Strudel sound (synths + GM soundfonts + default samples) and inserts
 the chosen name at your cursor (put it inside `s("…")`). Uses telescope if available,
-otherwise `vim.ui.select`. The list is bundled (`lua/strudel-types/sounds.lua`, ~520
-sounds + drum-machine banks); `:StrudelSoundsUpdate` (or `scripts/gen-sounds.sh`)
-regenerates it from Strudel's sound registrations and prebaked sample maps.
+otherwise `vim.ui.select`.
+
+In the telescope picker, **`<Tab>` previews** the highlighted sound — it downloads
+(and caches) the sound's first sample and plays it via `mpv`/`ffplay`/`pw-play`/
+`paplay` (first found). Sample-based sounds (~373) preview; synths and GM soundfonts
+are browser-synthesized (no sample file), so they just report "no preview".
+
+The list is bundled (`lua/strudel-types/sounds.lua`, ~520 sounds + 137 drum-machine
+banks + preview URLs); `:StrudelSoundsUpdate` (or `scripts/gen-sounds.sh`) regenerates
+it from Strudel's sound registrations and prebaked sample maps.
 
 - `:StrudelTypesUpdate` — regenerate the typedef from the latest Strudel JSDoc.
 - `:StrudelTypesEnable` / `:StrudelTypesDisable` — toggle for the session.

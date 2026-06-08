@@ -148,8 +148,66 @@ function M.sounds()
   return data.sounds or data -- {sounds=...,banks=...} or a flat list
 end
 
+--- name -> first sample URL (sample sounds only; synths/soundfonts have none).
+function M.sound_url(name)
+  package.loaded['strudel-types.sounds'] = nil
+  local ok, data = pcall(require, 'strudel-types.sounds')
+  if ok and type(data) == 'table' and data.urls then return data.urls[name] end
+  return nil
+end
+
+local PREVIEW_PLAYERS = {
+  { 'mpv', '--no-video', '--really-quiet', '--no-terminal' },
+  { 'ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet' },
+  { 'pw-play' },
+  { 'paplay' },
+}
+local preview_job
+
+--- Download (cached) and play a sound's first sample. Used by the picker's <Tab>.
+function M.play_sound(name)
+  if not name or name == '' then return end
+  local url = M.sound_url(name)
+  if not url then
+    vim.notify('[strudel-types] no audio preview for "' .. name .. '" (synth/soundfont)', vim.log.levels.INFO)
+    return
+  end
+  local player
+  for _, p in ipairs(PREVIEW_PLAYERS) do
+    if vim.fn.executable(p[1]) == 1 then player = p break end
+  end
+  if not player then
+    vim.notify('[strudel-types] no audio player found (install mpv or ffplay)', vim.log.levels.WARN)
+    return
+  end
+  local dir = vim.fn.stdpath 'cache' .. '/strudel-types/sounds'
+  vim.fn.mkdir(dir, 'p')
+  local ext = url:match '%.(%w+)$' or 'wav'
+  local file = dir .. '/' .. name:gsub('[^%w%-_]', '_') .. '.' .. ext
+  local function play()
+    if preview_job then pcall(function() preview_job:kill(9) end) end -- stop the previous one
+    local cmd = vim.deepcopy(player)
+    cmd[#cmd + 1] = file
+    preview_job = vim.system(cmd, { text = true })
+  end
+  if vim.fn.filereadable(file) == 1 then
+    play()
+  else
+    vim.system({ 'curl', '-fsSL', '-o', file, url }, {}, function(r)
+      vim.schedule(function()
+        if r.code == 0 and vim.fn.filereadable(file) == 1 then
+          play()
+        else
+          vim.notify('[strudel-types] preview download failed: ' .. name, vim.log.levels.WARN)
+        end
+      end)
+    end)
+  end
+end
+
 --- Fuzzy-pick a Strudel sound and insert it at the cursor. Bound to <leader>mf
 --- in .str/.std buffers. Uses telescope if present, else vim.ui.select.
+--- In telescope, <Tab> previews the highlighted sound (plays its sample).
 function M.sound_picker()
   local win = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_win_get_buf(win)
@@ -176,15 +234,21 @@ function M.sound_picker()
   local action_state = require 'telescope.actions.state'
   pickers
     .new({}, {
-      prompt_title = 'Strudel sounds',
+      prompt_title = 'Strudel sounds  (<Tab> preview)',
       finder = finders.new_table { results = sounds },
       sorter = conf.generic_sorter {},
-      attach_mappings = function(prompt_bufnr)
+      attach_mappings = function(prompt_bufnr, map)
         actions.select_default:replace(function()
           local entry = action_state.get_selected_entry()
           actions.close(prompt_bufnr)
           insert(entry and (entry.value or entry[1]))
         end)
+        local function preview()
+          local entry = action_state.get_selected_entry()
+          if entry then M.play_sound(entry.value or entry[1]) end
+        end
+        map('i', '<Tab>', preview)
+        map('n', '<Tab>', preview)
         return true
       end,
     })
