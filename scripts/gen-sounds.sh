@@ -14,11 +14,10 @@ for bin in git node; do
 done
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
-echo "strudel-types(sounds): cloning $REPO for GM soundfont names..."
+echo "strudel-types(sounds): cloning $REPO for GM soundfont presets..."
 git clone --depth 1 "$REPO" "$WORK/src" >/dev/null 2>&1
-grep -oE '^[[:space:]]+gm_[a-z0-9_]+:' "$WORK/src/packages/soundfonts/gm.mjs" | tr -d ': ' | sort -u > "$WORK/gm.txt" || true
 
 echo "strudel-types(sounds): fetching sample maps + emitting $OUT..."
-node "$ROOT/scripts/emit-sounds.mjs" "$WORK/gm.txt" "$OUT"
+node "$ROOT/scripts/emit-sounds.mjs" "$WORK/src/packages/soundfonts/gm.mjs" "$OUT"
 
 echo "strudel-types(sounds): done -> $OUT"

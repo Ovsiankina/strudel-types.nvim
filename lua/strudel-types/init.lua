@@ -164,14 +164,21 @@ local PREVIEW_PLAYERS = {
 }
 local preview_job
 
---- Download (cached) and play a sound's first sample. Used by the picker's <Tab>.
+--- Download (cached) and play a preview of a sound. Used by the picker's <Tab>.
+--- Sample sounds play their first sample; gm_* soundfonts are decoded from their
+--- webaudiofont preset via scripts/preview-soundfont.mjs. Built-in synths have none.
 function M.play_sound(name)
   if not name or name == '' then return end
-  local url = M.sound_url(name)
-  if not url then
-    vim.notify('[strudel-types] no audio preview for "' .. name .. '" (synth/soundfont)', vim.log.levels.INFO)
+  package.loaded['strudel-types.sounds'] = nil
+  local ok, data = pcall(require, 'strudel-types.sounds')
+  data = (ok and type(data) == 'table') and data or {}
+  local url = data.urls and data.urls[name]
+  local preset = data.soundfonts and data.soundfonts[name]
+  if not url and not preset then
+    vim.notify('[strudel-types] no audio preview for "' .. name .. '" (built-in synth)', vim.log.levels.INFO)
     return
   end
+
   local player
   for _, p in ipairs(PREVIEW_PLAYERS) do
     if vim.fn.executable(p[1]) == 1 then player = p break end
@@ -180,28 +187,51 @@ function M.play_sound(name)
     vim.notify('[strudel-types] no audio player found (install mpv or ffplay)', vim.log.levels.WARN)
     return
   end
+
   local dir = vim.fn.stdpath 'cache' .. '/strudel-types/sounds'
   vim.fn.mkdir(dir, 'p')
-  local ext = url:match '%.(%w+)$' or 'wav'
-  local file = dir .. '/' .. name:gsub('[^%w%-_]', '_') .. '.' .. ext
-  local function play()
-    if preview_job then pcall(function() preview_job:kill(9) end) end -- stop the previous one
+  local safe = name:gsub('[^%w%-_]', '_')
+  local function play(file)
+    if preview_job then pcall(function() preview_job:kill(9) end) end -- stop the previous
     local cmd = vim.deepcopy(player)
     cmd[#cmd + 1] = file
     preview_job = vim.system(cmd, { text = true })
   end
-  if vim.fn.filereadable(file) == 1 then
-    play()
-  else
-    vim.system({ 'curl', '-fsSL', '-o', file, url }, {}, function(r)
-      vim.schedule(function()
-        if r.code == 0 and vim.fn.filereadable(file) == 1 then
-          play()
-        else
-          vim.notify('[strudel-types] preview download failed: ' .. name, vim.log.levels.WARN)
-        end
+
+  if url then
+    local ext = url:match '%.(%w+)$' or 'wav'
+    local file = dir .. '/' .. safe .. '.' .. ext
+    if vim.fn.filereadable(file) == 1 then
+      play(file)
+    else
+      vim.system({ 'curl', '-fsSL', '-o', file, url }, {}, function(r)
+        vim.schedule(function()
+          if r.code == 0 and vim.fn.filereadable(file) == 1 then
+            play(file)
+          else
+            vim.notify('[strudel-types] preview download failed: ' .. name, vim.log.levels.WARN)
+          end
+        end)
       end)
-    end)
+    end
+  else -- gm_* soundfont: decode a note from its webaudiofont preset
+    local file = dir .. '/' .. safe .. '.mp3'
+    if vim.fn.filereadable(file) == 1 then
+      play(file)
+    elseif vim.fn.executable 'node' == 0 then
+      vim.notify('[strudel-types] node is required to preview soundfonts', vim.log.levels.WARN)
+    else
+      vim.notify('[strudel-types] fetching preview for ' .. name .. '…', vim.log.levels.INFO)
+      vim.system({ 'node', ROOT .. '/scripts/preview-soundfont.mjs', preset, file }, { text = true }, function(r)
+        vim.schedule(function()
+          if r.code == 0 and vim.fn.filereadable(file) == 1 then
+            play(file)
+          else
+            vim.notify('[strudel-types] soundfont preview failed: ' .. name, vim.log.levels.WARN)
+          end
+        end)
+      end)
+    end
   end
 end
 
