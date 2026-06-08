@@ -153,6 +153,11 @@ M.config = {
   -- Show the playback progress bar only for sounds at least this long, in ms.
   -- 0 = always show (default). Needs ffprobe to know the duration.
   preview_progress_min_ms = 0,
+  -- Local sampler servers to auto-detect in the picker (e.g. a running
+  -- `npx @strudel/sampler`), even when the buffer has no samples() call for them.
+  -- Probed on every picker open; if the server is down it's silently skipped.
+  -- Set to {} to disable.
+  sampler_urls = { 'http://localhost:5432' },
 }
 
 -- ── preview HUD: a small bottom-right float for the loading spinner + bar ──────
@@ -421,9 +426,28 @@ function M.buffer_specs(bufnr)
   return specs
 end
 
+-- All specs to resolve for a buffer: configured sampler URLs (auto-detected, e.g.
+-- a running @strudel/sampler) + the buffer's own samples() calls, deduped.
+local function all_specs(bufnr)
+  local specs, seen = {}, {}
+  for _, u in ipairs(M.config.sampler_urls or {}) do
+    if u ~= '' and not seen[u] then
+      seen[u] = true
+      specs[#specs + 1] = u
+    end
+  end
+  for _, s in ipairs(M.buffer_specs(bufnr)) do
+    if not seen[s] then
+      seen[s] = true
+      specs[#specs + 1] = s
+    end
+  end
+  return specs
+end
+
 --- Background-resolve a buffer's samples() imports so the picker opens warm.
 function M.prefetch_imports(bufnr)
-  for _, spec in ipairs(M.buffer_specs(bufnr)) do
+  for _, spec in ipairs(all_specs(bufnr)) do
     if spec_cache[spec] == nil then
       local tries, source = spec_urls(spec)
       if tries then
@@ -458,7 +482,9 @@ end
 --- Resolves (and caches) any specs not already fetched (synchronously).
 function M.imported_sounds(bufnr)
   local out = {}
-  for _, spec in ipairs(M.buffer_specs(bufnr)) do
+  -- re-detect sampler URLs each call (a running sampler's files can change)
+  for _, u in ipairs(M.config.sampler_urls or {}) do spec_cache[u] = nil end
+  for _, spec in ipairs(all_specs(bufnr)) do
     local c = spec_cache[spec]
     if type(c) ~= 'table' then -- nil or false (failed/not-ready): try now
       local tries, source = spec_urls(spec)
@@ -567,6 +593,9 @@ function M.setup(opts)
   if not opts.prompt then enabled = true end
   if opts.preview_progress_min_ms ~= nil then
     M.config.preview_progress_min_ms = opts.preview_progress_min_ms
+  end
+  if opts.sampler_urls ~= nil then
+    M.config.sampler_urls = opts.sampler_urls
   end
 
   local grp = vim.api.nvim_create_augroup('StrudelTypes', { clear = true })

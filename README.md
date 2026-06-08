@@ -81,9 +81,14 @@ otherwise `vim.ui.select`.
 
 **Imported sounds** declared in the buffer via `samples(...)` are resolved and listed
 **first, labelled with their source** — e.g. `swpad ‹switchangel/pad›`. Works for
-`github:user/repo`, a `strudel.json` URL, and the local **`@strudel/sampler`** dev
-server (`samples('http://localhost:5432')`). Bundled defaults follow with no label
-(no label = the default Strudel bank). Imported sounds preview too.
+`github:user/repo` and `strudel.json` URLs. A running local **`@strudel/sampler`**
+(`config.sampler_urls`, default `http://localhost:5432`) is **auto-detected** and its
+sounds shown even with no `samples()` call in the buffer. Bundled defaults follow with
+no label (no label = the default Strudel bank). Imported sounds preview too.
+
+> To actually *play* a local-sampler sound in a pattern you still need the
+> `samples('http://localhost:5432')` call in your file — the picker shows/auditions
+> them regardless.
 
 In the telescope picker, **`<Tab>` previews** the highlighted sound (cached after the
 first fetch), played via `mpv`/`ffplay`/`pw-play`/`paplay` (first found). A loading
