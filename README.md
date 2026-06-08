@@ -69,6 +69,15 @@ just like `mini("<0 1>")...`. Your own `register('name', ...)` methods don't bre
 chain either (an index signature keeps them typed as `Pattern`), though they won't
 have real hover/param docs since they're defined at runtime in the patch.
 
+### Sound picker
+
+`<leader>mf` (buffer-local to `.str`/`.std`) — or `:StrudelSounds` — opens a fuzzy
+picker of every Strudel sound (synths + GM soundfonts + default samples) and inserts
+the chosen name at your cursor (put it inside `s("…")`). Uses telescope if available,
+otherwise `vim.ui.select`. The list is bundled (`lua/strudel-types/sounds.lua`, ~520
+sounds + drum-machine banks); `:StrudelSoundsUpdate` (or `scripts/gen-sounds.sh`)
+regenerates it from Strudel's sound registrations and prebaked sample maps.
+
 - `:StrudelTypesUpdate` — regenerate the typedef from the latest Strudel JSDoc.
 - `:StrudelTypesEnable` / `:StrudelTypesDisable` — toggle for the session.
 

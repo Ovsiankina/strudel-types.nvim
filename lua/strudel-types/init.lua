@@ -121,6 +121,76 @@ function M.update()
   end)
 end
 
+--- Regenerate the sound list (scripts/gen-sounds.sh) (async).
+function M.update_sounds()
+  local script = ROOT .. '/scripts/gen-sounds.sh'
+  if vim.fn.filereadable(script) == 0 then
+    vim.notify('[strudel-types] missing ' .. script, vim.log.levels.ERROR)
+    return
+  end
+  vim.notify('[strudel-types] regenerating sound list…')
+  vim.system({ 'bash', script }, { text = true }, function(res)
+    vim.schedule(function()
+      if res.code == 0 then
+        vim.notify('[strudel-types] sound list updated.')
+      else
+        vim.notify('[strudel-types] sound update failed:\n' .. (res.stderr or '?'), vim.log.levels.ERROR)
+      end
+    end)
+  end)
+end
+
+--- The list of Strudel sound names (generated; see scripts/gen-sounds.sh).
+function M.sounds()
+  package.loaded['strudel-types.sounds'] = nil -- always read the current data
+  local ok, data = pcall(require, 'strudel-types.sounds')
+  if not ok or type(data) ~= 'table' then return {} end
+  return data.sounds or data -- {sounds=...,banks=...} or a flat list
+end
+
+--- Fuzzy-pick a Strudel sound and insert it at the cursor. Bound to <leader>mf
+--- in .str/.std buffers. Uses telescope if present, else vim.ui.select.
+function M.sound_picker()
+  local win = vim.api.nvim_get_current_win()
+  local buf = vim.api.nvim_win_get_buf(win)
+  local pos = vim.api.nvim_win_get_cursor(win) -- {row(1-based), col(0-based)}
+  local sounds = M.sounds()
+  if #sounds == 0 then
+    vim.notify('[strudel-types] no sound list found. Run :StrudelSoundsUpdate', vim.log.levels.WARN)
+    return
+  end
+  local function insert(name)
+    if not name or name == '' then return end
+    pcall(vim.api.nvim_buf_set_text, buf, pos[1] - 1, pos[2], pos[1] - 1, pos[2], { name })
+    pcall(vim.api.nvim_win_set_cursor, win, { pos[1], pos[2] + #name })
+  end
+
+  local ok_tel, pickers = pcall(require, 'telescope.pickers')
+  if not ok_tel then
+    vim.ui.select(sounds, { prompt = 'Strudel sound' }, insert)
+    return
+  end
+  local finders = require 'telescope.finders'
+  local conf = require('telescope.config').values
+  local actions = require 'telescope.actions'
+  local action_state = require 'telescope.actions.state'
+  pickers
+    .new({}, {
+      prompt_title = 'Strudel sounds',
+      finder = finders.new_table { results = sounds },
+      sorter = conf.generic_sorter {},
+      attach_mappings = function(prompt_bufnr)
+        actions.select_default:replace(function()
+          local entry = action_state.get_selected_entry()
+          actions.close(prompt_bufnr)
+          insert(entry and (entry.value or entry[1]))
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
 --- @param opts table|nil  { prompt = false }
 ---   Default: always-on for .str/.std (loads lazily on first such buffer, no prompt).
 ---   Set prompt=true to be asked once per session before enabling.
@@ -132,7 +202,12 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
     group = grp,
     pattern = { '*.str', '*.std' },
-    callback = function()
+    callback = function(ev)
+      -- Buffer-local sound picker (scoped to .str/.std, never leaks to other files).
+      vim.keymap.set('n', '<leader>mf', M.sound_picker, {
+        buffer = ev.buf,
+        desc = 'Strudel: find/insert sound',
+      })
       -- defer so strudel.nvim's filetype=javascript autocmd and the LSP attach
       -- have run first.
       vim.schedule(on_strudel_buf)
@@ -142,6 +217,8 @@ function M.setup(opts)
   vim.api.nvim_create_user_command('StrudelTypesUpdate', M.update, { desc = 'Regenerate Strudel typedefs' })
   vim.api.nvim_create_user_command('StrudelTypesEnable', function() M.enable() end, { desc = 'Enable Strudel type support (this session)' })
   vim.api.nvim_create_user_command('StrudelTypesDisable', M.disable, { desc = 'Disable Strudel type support (this session)' })
+  vim.api.nvim_create_user_command('StrudelSounds', M.sound_picker, { desc = 'Pick a Strudel sound and insert it at the cursor' })
+  vim.api.nvim_create_user_command('StrudelSoundsUpdate', M.update_sounds, { desc = 'Regenerate the Strudel sound list' })
 end
 
 return M
