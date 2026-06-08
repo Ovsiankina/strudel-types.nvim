@@ -1,0 +1,4 @@
+# the generated typedef IS committed (types/strudel.d.ts) — do not ignore it
+node_modules/
+*.log
+.DS_Store
