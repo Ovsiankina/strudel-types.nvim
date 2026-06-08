@@ -359,6 +359,26 @@ local function first_file(v)
   return nil
 end
 
+-- All sample files under a map value (array and/or note-object), in order.
+local function all_files(v, acc)
+  acc = acc or {}
+  if type(v) == 'string' then
+    acc[#acc + 1] = v
+  elseif type(v) == 'table' then
+    if v[1] ~= nil then
+      for _, x in ipairs(v) do all_files(x, acc) end
+    else
+      for _, x in pairs(v) do all_files(x, acc) end
+    end
+  end
+  return acc
+end
+
+-- "/foo/bar/Kick_01.wav" -> "Kick_01"
+local function basename(p)
+  return (p:gsub('%.%w+$', ''):match '([^/]+)$') or p
+end
+
 -- spec -> { candidate strudel.json URLs }, source label
 local function spec_urls(spec)
   local gh = spec:match '^github:(.+)$'
@@ -397,18 +417,40 @@ local function url_base(fetched)
   return (fetched or ''):gsub('/strudel%.json$', ''):gsub('/$', '')
 end
 
-local function parse_map(json, source, fetched_url)
+-- Parse a strudel.json-style map into sound entries.
+-- expand=true (local sampler) emits ONE entry per file (bank:index, with the
+-- filename) so every sample is browsable; otherwise one entry per bank.
+local function parse_map(json, source, fetched_url, expand)
   local ok, o = pcall(vim.json.decode, json)
   if not ok or type(o) ~= 'table' then return nil end
   local base = (o._base and o._base ~= '') and o._base or url_base(fetched_url)
   local out = {}
   for k, v in pairs(o) do
     if k ~= '_base' then
-      local f = first_file(v)
-      out[#out + 1] = { name = k, url = f and join_url(base, f) or nil, source = source }
+      if expand then
+        local files = all_files(v)
+        if #files <= 1 then
+          out[#out + 1] = { name = k, url = files[1] and join_url(base, files[1]) or nil, source = source, file = files[1] and basename(files[1]) or nil }
+        else
+          for i, f in ipairs(files) do
+            out[#out + 1] = { name = k .. ':' .. (i - 1), url = join_url(base, f), source = source, file = basename(f) }
+          end
+        end
+      else
+        local f = first_file(v)
+        out[#out + 1] = { name = k, url = f and join_url(base, f) or nil, source = source }
+      end
     end
   end
   return out
+end
+
+-- expand banks per-file only for configured local samplers (not big github banks)
+local function is_sampler(spec)
+  for _, u in ipairs(M.config.sampler_urls or {}) do
+    if u == spec then return true end
+  end
+  return false
 end
 
 --- samples() specs declared in a buffer (deduped, in order).
@@ -461,7 +503,7 @@ function M.prefetch_imports(bufnr)
           end
           vim.system({ 'curl', '-fsSL', '--max-time', '6', u }, { text = true }, function(r)
             vim.schedule(function()
-              local sounds = (r.code == 0 and r.stdout ~= '') and parse_map(r.stdout, source, u) or nil
+              local sounds = (r.code == 0 and r.stdout ~= '') and parse_map(r.stdout, source, u, is_sampler(spec)) or nil
               if sounds then
                 spec_cache[spec] = { source = source, sounds = sounds }
               else
@@ -493,7 +535,7 @@ function M.imported_sounds(bufnr)
         for _, u in ipairs(tries) do
           local r = vim.system({ 'curl', '-fsSL', '--max-time', '6', u }, { text = true }):wait()
           if r.code == 0 and r.stdout and r.stdout ~= '' then
-            local sounds = parse_map(r.stdout, source, u)
+            local sounds = parse_map(r.stdout, source, u, is_sampler(spec))
             if sounds then
               c = { source = source, sounds = sounds }
               break
@@ -524,7 +566,8 @@ function M.sound_picker()
 
   local entries = {}
   for _, s in ipairs(M.imported_sounds(buf)) do
-    entries[#entries + 1] = { value = s.name, label = s.name .. '  ‹' .. s.source .. '›', url = s.url, source = s.source }
+    local label = s.name .. (s.file and ('  ' .. s.file) or '') .. '  ‹' .. s.source .. '›'
+    entries[#entries + 1] = { value = s.name, label = label, url = s.url, source = s.source }
   end
   for _, name in ipairs(M.sounds()) do
     entries[#entries + 1] = { value = name, label = name }
