@@ -371,22 +371,36 @@ local function spec_urls(spec)
     }, source
   end
   if spec:match '^https?://' then
-    local url = spec:match '%.json$' and spec or (spec:gsub('/$', '') .. '/strudel.json')
     local source = spec:gsub('^https?://', ''):gsub('/strudel%.json$', ''):gsub('/$', '')
-    return { url }, source
+    if spec:match '%.json$' then return { spec }, source end
+    -- @strudel/sampler serves the map at the ROOT; static hosts may use /strudel.json
+    local b = spec:gsub('/$', '')
+    return { b, b .. '/strudel.json' }, source
   end
   return nil -- shabda:/local: etc unsupported
 end
 
-local function parse_map(json, source)
+local function join_url(base, file)
+  if file:match '^https?://' then return file end
+  base = (base or ''):gsub('/$', '')
+  if file:sub(1, 1) == '/' then return base .. file end
+  return base .. '/' .. file
+end
+
+-- base dir for resolving relative sample files when the map has no _base
+local function url_base(fetched)
+  return (fetched or ''):gsub('/strudel%.json$', ''):gsub('/$', '')
+end
+
+local function parse_map(json, source, fetched_url)
   local ok, o = pcall(vim.json.decode, json)
   if not ok or type(o) ~= 'table' then return nil end
-  local base = o._base or ''
+  local base = (o._base and o._base ~= '') and o._base or url_base(fetched_url)
   local out = {}
   for k, v in pairs(o) do
     if k ~= '_base' then
       local f = first_file(v)
-      out[#out + 1] = { name = k, url = f and (base .. f) or nil, source = source }
+      out[#out + 1] = { name = k, url = f and join_url(base, f) or nil, source = source }
     end
   end
   return out
@@ -423,7 +437,7 @@ function M.prefetch_imports(bufnr)
           end
           vim.system({ 'curl', '-fsSL', '--max-time', '6', u }, { text = true }, function(r)
             vim.schedule(function()
-              local sounds = (r.code == 0 and r.stdout ~= '') and parse_map(r.stdout, source) or nil
+              local sounds = (r.code == 0 and r.stdout ~= '') and parse_map(r.stdout, source, u) or nil
               if sounds then
                 spec_cache[spec] = { source = source, sounds = sounds }
               else
@@ -453,7 +467,7 @@ function M.imported_sounds(bufnr)
         for _, u in ipairs(tries) do
           local r = vim.system({ 'curl', '-fsSL', '--max-time', '6', u }, { text = true }):wait()
           if r.code == 0 and r.stdout and r.stdout ~= '' then
-            local sounds = parse_map(r.stdout, source)
+            local sounds = parse_map(r.stdout, source, u)
             if sounds then
               c = { source = source, sounds = sounds }
               break

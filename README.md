@@ -79,10 +79,11 @@ picker of every Strudel sound (synths + GM soundfonts + default samples) and ins
 the chosen name at your cursor (put it inside `s("…")`). Uses telescope if available,
 otherwise `vim.ui.select`.
 
-**Imported sounds** declared in the buffer via `samples('github:user/repo')` (or a
-URL) are resolved and listed **first, labelled with their source** — e.g.
-`swpad ‹switchangel/pad›`. Bundled defaults follow with no label (no label = the
-default Strudel bank). Imported sounds preview too.
+**Imported sounds** declared in the buffer via `samples(...)` are resolved and listed
+**first, labelled with their source** — e.g. `swpad ‹switchangel/pad›`. Works for
+`github:user/repo`, a `strudel.json` URL, and the local **`@strudel/sampler`** dev
+server (`samples('http://localhost:5432')`). Bundled defaults follow with no label
+(no label = the default Strudel bank). Imported sounds preview too.
 
 In the telescope picker, **`<Tab>` previews** the highlighted sound (cached after the
 first fetch), played via `mpv`/`ffplay`/`pw-play`/`paplay` (first found). A loading
