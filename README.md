@@ -83,10 +83,18 @@ otherwise `vim.ui.select`.
 **first, labelled with their source** — e.g. `swpad ‹switchangel/pad›`. Works for
 `github:user/repo` and `strudel.json` URLs. A running local **`@strudel/sampler`**
 (`config.sampler_urls`, default `http://localhost:5432`) is **auto-detected** even with
-no `samples()` call in the buffer, and **each of its files is listed individually**
-(`samples:0  Abr-chiptune1 ‹localhost:5432›`, …) so you can fuzzy-find and preview each
-— re-scanned every open, so new files show up. Bundled defaults follow with no label
-(no label = the default Strudel bank). Imported sounds preview too.
+no `samples()` call in the buffer — re-scanned every open, so new files show up.
+Bundled defaults follow with no label (no label = the default Strudel bank).
+Imported sounds preview too.
+
+How a sampler file is **named/inserted** depends on your folder layout, because
+that's how Strudel addresses them:
+- **one subfolder per sample** (`samples/kick/kick.wav`) → each becomes a named
+  bank, inserted as `s("kick")`. Recommended — you pick by name and it plays.
+- **flat files** (`samples/kick.wav`) → Strudel sees a single bank named after the
+  folder with numbered variations, so they're listed/inserted as `bank:index`
+  (`samples:0`, …) with the filename shown only as a label to disambiguate. The
+  bare filename is *not* a valid Strudel sound name in this layout.
 
 > To actually *play* a local-sampler sound in a pattern you still need the
 > `samples('http://localhost:5432')` call in your file — the picker shows/auditions

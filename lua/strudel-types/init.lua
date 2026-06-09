@@ -566,7 +566,10 @@ function M.sound_picker()
 
   local entries = {}
   for _, s in ipairs(M.imported_sounds(buf)) do
-    local label = s.name .. (s.file and ('  ' .. s.file) or '') .. '  ‹' .. s.source .. '›'
+    -- Show the filename only when it adds info (multi-file banks use bank:index
+    -- names, so the basename disambiguates; a named single-file bank doesn't).
+    local extra = (s.file and s.file ~= s.name) and ('  ' .. s.file) or ''
+    local label = s.name .. extra .. '  ‹' .. s.source .. '›'
     entries[#entries + 1] = { value = s.name, label = label, url = s.url, source = s.source }
   end
   for _, name in ipairs(M.sounds()) do
